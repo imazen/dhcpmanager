@@ -1,0 +1,18 @@
+Dhcp Server 192.168.100.71 Scope 192.168.0.0 Add reservedip 192.168.100.90 00143
+865e78d "NPI65E78D" "HP LaserJet 4250 n" "BOOTP"
+Dhcp Server 192.168.100.71 Scope 192.168.0.0 Add reservedip 192.168.100.91 0040c
+a98c84f "dane.vgr.local" "Dan Evans" "DHCP"
+Dhcp Server 192.168.100.71 Scope 192.168.0.0 Add reservedip 192.168.100.92 00034
+7f6d26c "bobby.vgr.local" "Billy Paul (Desktop)" "DHCP"
+Dhcp Server 192.168.100.71 Scope 192.168.0.0 Add reservedip 192.168.100.93 00132
+05c15af "kenandes.vgr.local" "Neil Halava 2" "DHCP"
+Dhcp Server 192.168.100.71 Scope 192.168.0.0 Add reservedip 192.168.100.95 0010d
+c74b8cd "benaudio.vgr.local" "Scott Reed (Secondary Desktop) (Audio)" "DHCP"
+Dhcp Server 192.168.100.71 Scope 192.168.0.0 Add reservedip 192.168.100.96 00167
+69e7491 "vgrsecurity." "Nathanael Jones (New Desktop)" "DHCP"
+Dhcp Server 192.168.100.71 Scope 192.168.0.0 Add reservedip 192.168.100.97 0040c
+a989304 "NPI0040CA989304.vgr.local" "both" "DHCP"
+Dhcp Server 192.168.100.71 Scope 192.168.0.0 Add reservedip 192.168.100.98 0007e
+9e9bd0e "georgexp.vgr.local" "George Wenger (Desktop)" "DHCP"
+Dhcp Server 192.168.100.71 Scope 192.168.0.0 Add reservedip 192.168.100.99 00a0d
+1264de5 "vgrnotebook1.vgr.local" "This address is already in use" "DHCP"

@@ -1,0 +1,1666 @@
+<html>
+<head>
+    <title>Super Copy by Nathanael Jones</title>
+    <hta:application id="objCopier" applicationname="SuperCopy" scroll="auto" singleinstance="yes"
+        windowstate="normal" border="thick" innerborder="no" icon="images\Icon.ico" scrollflat="yes">
+		
+		<script language="JavaScript" src="Core.js"></script>
+		<script language="JavaScript" src="OutputFormatting.js"></script>
+		<link href="UI.css" type=text/css rel=STYLESHEET>
+		
+
+<script id="clientEventHandlersJS" language="jscript">
+
+var level = 0;
+var index = 0;
+var Start = new Date();
+function l(message){
+    if (!chkTrace.checked) return;
+    index++;
+    Stamp = new Date();
+    var diff = Stamp.getTime() - Start.getTime();
+    
+    var IsParent = false;
+    if (message.substr(0,1)=="+"){
+        IsParent =true;
+        message = message.substr(1,message.length -1);
+    }
+    
+    var currentParent = document.getElementById("tracepanelist");
+    if (currentParent == null) return; /// The HTML form hasn't initialized yet, so we can't do anything.
+    var countdown = level;
+    while(true){
+        if (countdown < 1) break;
+        countdown--;
+        if (currentParent.lastChild == null) break;
+        if (currentParent.lastChild.nodeName=="ul" || currentParent.lastChild.nodeName=="UL"){
+            currentParent = currentParent.lastChild;
+            
+            var sib = currentParent.previousSibling;
+            
+            if (countdown == 0){
+                if (sib.nodeName=="li" ||
+                    sib.nodeName=="LI"){
+
+                     if (message=="-"){
+                        var original = sib.firstChild.innerHTML;
+                        if (diff != original){
+                            sib.firstChild.innerHTML = "<span class=\"tracetime\">" + (diff - original) + "ms </span>(" + original + " - " + diff + ")";
+                            
+                        }
+                        if (sib.className=="parent"){
+                            currentParent.className = "parent";
+                        }
+                        level--;
+                        return;
+                     }else{
+                        sib.className="parent";
+                     }
+                }
+            }
+            
+        }else break;
+        
+    }
+    if (message=="-"){
+        level--;
+        return;
+    }
+
+    var newRow = document.createElement("li");
+    newRow.innerHTML= "<span class=\"tracedate\">" + diff + "</span> <span class=\"traceid\">" + index + "</span>"  + message;
+    currentParent.appendChild(newRow);
+    
+    if (IsParent) {
+        var newLevel = document.createElement("ul");
+        currentParent.appendChild(newLevel);
+        level++;
+    }
+}
+
+//These store the last suggestion and suggestion line number from the last UpdateForm(); to make the tab key autosuggest
+var lastsuggestion = "";
+var lastsuggestionline = 0;
+
+//To make the elipsis display all items, we must store the index of the item to expand, then refresh. We will expand by upping the maxlistingitems
+var ExpandLine= -5;
+
+
+
+//To optimize UpdateForm(), and only update what has changed.
+var sourcetext = "";
+var desttext = "";
+
+//////////////////////////////////////////////////////////////////////////////////////////////
+//Settings file paths
+//////////////////////////////////////////////////////////////////////////////////////////////
+
+// Returns the full path to SuperCopy's application settings directory in the user's documents and settings directory.
+// If the directory does not exist, it creates it first.
+function AppSettingsRoot(){
+	var sh = new ActiveXObject("WScript.Shell");
+	fso = new ActiveXObject("Scripting.FileSystemObject");
+	if (!fso.FolderExists(sh.ExpandEnvironmentStrings("%APPDATA%") + "\\SuperCopy")) fso.CreateFolder(sh.ExpandEnvironmentStrings("%APPDATA%") + "\\SuperCopy");
+	return sh.ExpandEnvironmentStrings("%APPDATA%") + "\\SuperCopy";
+
+}
+
+// Returns the full path to the user's temporary files directory
+function UserTempDir(){
+	fso = new ActiveXObject("Scripting.FileSystemObject");
+	return fso.GetSpecialFolder(2);
+}
+
+//While SuperCopy is capable of reading and writing script files, a different approach was taken for saving the last state of the application
+// This was done so that other scripts or applications could modify the setup easily
+
+// The file that the exclude list is saved in
+function ExcludeListPath(){	return AppSettingsRoot() + "\\Exclude.lst";}
+
+// Source files and folders, newline delimited
+function SourceListPath(){	return AppSettingsRoot() + "\\Source.lst";}
+
+// The destination folder
+function DestinationListPath(){	return AppSettingsRoot() + "\\Dest.lst";}
+
+// Array of the settings
+function SettingsListPath(){	return AppSettingsRoot() + "\\Options.cfg";}
+
+
+// This is where all IE errors within the supercopy interface are logged.
+function DebugLogPath(){	return UserTempDir() + "\\SuperCopyDebug.txt";}
+
+// This is the script that the simulation version of the transfer is stored for calculation
+function TestScriptPath(){	return UserTempDir() + "\\Test Script.bat";}
+
+// The test script pipes all output to this file
+function TestLogPath(){		return UserTempDir() + "\\Test Script.log";}
+
+// The reformatting function colors and cleans up the test log, then places it here. A summary is placed in the interface, with a link to this file
+function TestHTMLPath(){	return UserTempDir() + "\\Test Script.html";}
+
+// This is where the script is saved when a transfer is run or saved. If run, this file is executed. If saved, this file is opened in IE, which prompts the user to save.
+function CopyScriptPath(){	return UserTempDir() + "\\Copy Script.bat";}
+
+//////////////////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////////////////
+
+
+
+//Autocomplete keypress handler
+function txtSourceOrDest_onkeydown() {
+	//If we have pressed / or 
+	if (window.event.keyCode == 191 || window.event.keyCode == 220){
+		//If what has been typed is a substring of the last suggestion, expand the suggestion
+
+		var items = GetList( txtDest.value + "\n" + txtSource.innerText);
+	
+
+		if (lastsuggestionline > -1)
+			if (lastsuggestionline < items.length)
+				if (lastsuggestion.length > items[lastsuggestionline].length)
+					if (lastsuggestion.substr(0,items[lastsuggestionline]) == items[lastsuggestionline]){
+						//Perform the navigation, update the text box
+						LinkClicked(lastsuggestionline,lastsuggestion);
+					}
+	}
+}
+
+// Updates the browser display if a key is pressed inside the text box
+function txtSourceOrDest_onkeyup() {
+	LazyUpdateForm();
+	//if (window.event.keyCode == 32) txtSource.innerText = txtSource.innerText.substring(0,txtSource.innerText.length - 1);
+}
+
+function GetDriveTypeTitle(number){
+    switch (number){
+        case 0: return "Unknown"; break;
+        case 1: return "Removable"; break;
+        case 2: return "Local Disk"; break;
+        case 3: return "Network Drive"; break;
+        case 4: return "Optical Drive"; break;
+        case 5: return "RAM Disk"; break;
+    }
+    return "Unknown";
+}
+
+function GetFriendlySize (bytecount){
+
+    if (bytecount < 1000) return bytecount + " bytes";
+    if (bytecount < 1000000) return Math.round(bytecount /1000) + " KB";
+    if (bytecount < 1000000000) return Math.round (bytecount / 1000000) + " MB";
+    if (bytecount < 1000000000000) return Math.round (bytecount / 1000000000) + " GB";
+    return Math.round (bytecount / 1000000000000) + " TB";
+}
+
+//This function returns the HTML for a link that calls the LinkClicked function and passes the encoded target path for navigation
+// Generates the navigation link that calls the LinkClicked function to navigate.
+// TODO: Modify paramaters to include a pre-made fso, the file or folder object instead of the path, and
+// 
+function CreateLink (newvalue,DisplayName,style,targetline){
+    l("+CreateLink(newvalue = \"" + newvalue + "\",DisplayName, style, targetline = " + targetline + " )");
+	var title = "";
+	var afso,drive,folder,file;
+	afso = new ActiveXObject("Scripting.FileSystemObject");
+	if (afso.DriveExists(newvalue)){
+		drive=afso.GetDrive(newvalue);
+		
+		DisplayName = drive.DriveLetter + ":";
+		
+        if (drive.DriveLetter == "a" || drive.DriveLetter == "A"){
+            DisplayName = drive.DriveLetter + ":";
+            title = "";
+        }else{
+		    var IsReady = drive.IsReady;
+    		
+		    var volname = "";
+		    if (IsReady) volname= drive.VolumeName;
+	        if (volname.length == 0) volname =  GetDriveTypeTitle(drive.DriveType);
+	        if (volname.length > 0) volname = " (" + volname + ")";
+	        if (drive.ShareName.length > 0) volname = " " + drive.ShareName + volname;
+    	    
+	        title=drive.DriveLetter + ":" + volname + "\n\n";
+    	    
+	        //Ovverride the style and title only if this is a drive listing
+		    if (style=="dirlisting"){
+		        switch (drive.DriveType){
+                    case 1: style="removabledrive"; break;
+                    case 2: style="localdrive"; break;
+                    case 3: style="networkdrive"; break;
+                    case 4: style="opticaldrive"; break;
+                }
+                //override the DisplayName
+	            DisplayName=drive.DriveLetter + ":" + volname;
+		    }
+
+		    if (IsReady){
+
+		        title += "Type: " + GetDriveTypeTitle(drive.DriveType);
+		        if (drive.FileSystem.length > 0) title += " (" + drive.FileSystem + ")";
+    		    
+		        title += "\n\n";
+		        if (drive.SerialNumber.length > 0) title += "Serial: " + + drive.SerialNumber + "\n\n";
+    		    
+		        //Drive usage
+		        var percentfree = drive.AvailableSpace / drive.TotalSize * 100;
+    		    
+		        var percentstring =  " ";
+		        if (percentfree < 1 && percentfree > 0) percentstring = "less than 1%";
+		        else percentstring = Math.round(percentfree) + "%";
+    		    
+    		    
+		        //drive.FreeSpace includes quota information
+		        title += GetFriendlySize(drive.AvailableSpace) + " free (" + percentstring + 
+		                ") of " + GetFriendlySize( drive.TotalSize) + "\n";
+    		    
+    		    
+		    } else {
+		        title += "Drive not ready\n";
+		    }
+		}
+    //Remove these pointless checks - they cost I/O
+	}//else if (afso.FolderExists(newvalue)){
+		//folder=afso.GetFolder(newvalue);
+	//}else if (afso.FileExists(newvalue)){
+		//file = afso.GetFile(newvalue);
+	//}
+	l("-");
+	return "<span class=\"wrapfix\"><span class=\"" + style + "\" language=\"javascript\" title=\"" + title + "\" onclick=\"return LinkClicked('" + 
+											targetline + "','" + EncodeString(newvalue) + "');\">" + DisplayName + " </span> <span> ";
+}
+//This function returns the HTML for a link that calls the LinkClicked function and passes the encoded target path for navigation
+// Generates the navigation link that calls the LinkClicked function to navigate.
+// TODO: Modify paramaters to include a pre-made fso, the file or folder object instead of the path, and
+// 
+function CreateLink2 (afso, item,style,targetline){
+    l("+CreateLink2(afso, item = \"" + item.Path + "\", style, targetline = " + targetline + " )");
+	
+	var title = "";
+	var DisplayName = "";
+	
+	if (item.DriveType != null){
+		DisplayName = item.DriveLetter + ":" ;
+	
+	
+	}else{
+	
+	    if (style=="PathInfoUp" )
+	        DisplayName = item.Path;
+	    else
+	        DisplayName = item.Name;
+	
+	}
+	
+	if (style=="PathInfoUp") if (DisplayName.substr(DisplayName.length-1,1) != "\\") DisplayName += "\\";
+	if (item.DriveType != null){
+        var drive = item;
+        if (drive.DriveLetter == "a" || drive.DriveLetter == "A"){
+            //Do nothing extra.
+        }else{
+		    var IsReady = drive.IsReady;
+    		
+		    var volname = "";
+		    if (IsReady) volname= drive.VolumeName;
+	        if (volname.length == 0) volname =  GetDriveTypeTitle(drive.DriveType);
+	        if (volname.length > 0) volname = " (" + volname + ")";
+	        if (drive.ShareName.length > 0) volname = " " + drive.ShareName + volname;
+    	    
+	        title=drive.DriveLetter + ":" + volname + "\n\n";
+    	    
+	        //Ovverride the style and title only if this is a drive listing
+		    if (style=="dirlisting"){
+		        switch (drive.DriveType){
+                    case 1: style="removabledrive"; break;
+                    case 2: style="localdrive"; break;
+                    case 3: style="networkdrive"; break;
+                    case 4: style="opticaldrive"; break;
+                }
+                //override the DisplayName
+	            DisplayName=drive.DriveLetter + ":" + volname;
+		    }
+
+		    if (IsReady){
+
+		        title += "Type: " + GetDriveTypeTitle(drive.DriveType);
+		        if (drive.FileSystem.length > 0) title += " (" + drive.FileSystem + ")";
+    		    
+		        title += "\n\n";
+		        if (drive.SerialNumber.length > 0) title += "Serial: " + + drive.SerialNumber + "\n\n";
+    		    
+		        //Drive usage
+		        var percentfree = drive.AvailableSpace / drive.TotalSize * 100;
+    		    
+		        var percentstring =  " ";
+		        if (percentfree < 1 && percentfree > 0) percentstring = "less than 1%";
+		        else percentstring = Math.round(percentfree) + "%";
+    		    
+    		    
+		        //drive.FreeSpace includes quota information
+		        title += GetFriendlySize(drive.AvailableSpace) + " free (" + percentstring + 
+		                ") of " + GetFriendlySize( drive.TotalSize) + "\n";
+    		    
+    		    
+		    } else {
+		        title += "Drive not ready\n";
+		    }
+  		}
+  	}
+	
+	l("-");
+	return "<span class=\"wrapfix\"><span class=\"" + style + "\" language=\"javascript\" title=\"" + title + "\" onclick=\"return LinkClicked('" + 
+		targetline + "','" + EncodeString(item.Path) + "');\">" + DisplayName + "</span> <span> ";
+}
+
+// The custom file browser inside this application is auto-generated. The auto-generated content contains calls to this function.
+// This is called by file browser links, and performs the actual navigation by modifying the text box contents and updating the browser display.
+function LinkClicked(targetline,newvalue) {
+    l("+LinkClicked(" + targetline + ") //Performs navigation");
+    
+	newvalue = DecodeString(newvalue);
+	//window.alert("change line " + targetline + " to " + newvalue);
+	if (targetline==0){
+		txtDest.value = newvalue;
+	}else{
+		//GetExactList
+		var userlist = GetList(txtSource.innerText);
+		userlist[targetline -1]=newvalue;
+		txtSource.innerText = "";
+		for (I=0;I<userlist.length;I++){
+			txtSource.innerText += "\n" + userlist[I] + "\n";
+		}
+		txtSource.innerText = txtSource.innerText.substring(2,txtSource.innerText.length);
+	}
+	UpdateForm();
+	
+	l("-");
+}
+
+
+//To keep track of the last path the resulted in a Not Accessable dialog
+var LastAlertPath = " ";
+//This function creates a navigation listing based upon a path statement. It lists suggestions, alternatives, and the parent directory
+//target line is the validated line that should be modified when components of this path are clicked. 
+//0 means txtTo
+//use 1 based index for txtFrom
+function GetPathHTML(path,targetline) {
+    l("+GetPathHTML(\"" + path + "\"," + targetline + ")");
+	//The maximum number of alternatives to display
+	var MaxListingItems = 12;
+	
+	//If we have too many entries, we can't display alternatives.
+	if (targetline > 15) MaxListingItems=0;	
+	
+	//Our filesystemobject
+	var afso;
+	afso = new ActiveXObject("Scripting.FileSystemObject");
+	
+	var fc; //Enumerator object
+	var listingitems = 0;	//Integer object to hold the number of items displayed, and to limit it
+	//Same as above, except for the backup "fulllistingitems" if there are no suggestions
+	//These must be done independently, as we do not know we have no suggestions until the very end
+	var fulllistingitems = 0;
+	//To hold our best suggestion for the user.
+	var suggestion = "";
+	//Done means we have found a suggestion to display that matches part of the user's input
+	var done = false;
+	//The listing variable contains what alternative files or folders are displayed after the chosen suggestion
+	var listing="";
+	//The fulllisting variable contains what is displayed when no suggestion is found
+	var fulllisting = "";	
+		
+	//Creates a button that removes the current item from the list
+	//TODO: USE of CreateLink
+	var DeleteButton = CreateLink("","Remove this line","DeleteItem",targetline);
+	
+	if ((path.lastIndexOf("\\") < path.lastIndexOf("*")) | (path.lastIndexOf("\\") < path.lastIndexOf("?"))){
+		path = path.substr(0,path.lastIndexOf("\\") + 1);
+	}
+	l("+Checking path validity..");
+	//Cached information about the current path
+	var DriveExists = afso.DriveExists(path); //| ((path.length==2) & (afso.DriveExists(path + "\\")));
+	var FileExists = afso.FileExists(path);
+	var FolderExists = afso.FolderExists(path);
+	l("-");
+	//This hides sibling file alternatives
+	if (FileExists) MaxListingItems=0;
+	
+	//If the user clicked the ellipses, up the max listing number and reset the click index
+	if (ExpandLine==targetline){
+		MaxListingItems=500;
+		ExpandLine=-5;
+	}
+	
+	//Create ellipses button
+	var ellipses = "<span class=\"listing\" language=\"javascript\" onclick=\"ExpandLine=" + targetline + ";UpdateForm();\">";
+	if (FileExists)
+		ellipses += "alternative files...</span>";
+	else
+		ellipses += "more...</span>";
+    l("+Checking if drive is ready...");
+    var DriveReady = true;
+    
+    if (DriveExists){
+        var dtest;
+        dtest = afso.GetDrive(path);
+        if (!dtest.IsReady){
+            DriveReady=false;
+            if (LastAlertPath.substr(0,1)!=path.substr(0,1)){
+                LastAlertPath = path;
+                window.alert("The drive is not accessible");
+            }
+        }
+    }
+    l("-");
+
+	if ((DriveExists | FileExists | FolderExists) & (DriveReady)) {
+		l("+Enumerating information for a valid path");
+		//Variable to hold the folder object for this item so that we can display the directory contents
+		var folder,drive;
+		var IsDrive = false;
+		l("+Acquiring the parent filesystem object...");
+		if (DriveExists){
+
+			drive = afso.GetDrive(path);
+			folder = drive.RootFolder;
+			IsDrive = true;
+		}else{
+			//If it is a file, get the parent folder. If it is a folder, we just want the folder
+			if (!FolderExists) folder = afso.GetFolder(afso.GetParentFolderName(path));
+			else	folder = afso.GetFolder(path);
+		}		
+		l("-");
+	    l("+Enumerating through the subfolders wfwe");
+	    l("+Creating enumerator...");
+		//Enumerate through the subfolders
+		l("-");
+		fc = new Enumerator(folder.SubFolders);
+		for (; !fc.atEnd(); fc.moveNext()){
+		    var item = fc.item();
+			if (item != null){
+				if (listingitems < MaxListingItems){
+				    fulllisting += 	CreateLink2(afso, item,"dirlisting",targetline); 
+				    listingitems++;
+				} else break;
+		    }
+		}
+		l("-");
+		l("+Enumerating through the files wfwe");
+		l("+Creating enumerator...");
+		//Enumerate through the files
+		fc = new Enumerator(folder.files);
+		l("-");
+		for (; !fc.atEnd(); fc.moveNext()){
+		    var item = fc.item();
+			if (item != null)
+				if (listingitems < MaxListingItems){
+					fulllisting += CreateLink2(afso,item,"listing",targetline); 
+					listingitems++;
+					
+				}else{
+				    break;
+				}
+		}
+		l("-");
+
+		
+		//Return the HTML that displays the capitalized path the user has typed in and the sub-items of that object.
+		var UpLink = "";
+		if (drive==null){
+			UpLink = afso.GetParentFolderName(path);
+			if (!(UpLink.charAt(UpLink.length -1)=="\\")) UpLink += "\\";
+		}
+		var ThisItem = path.substring(UpLink.length,path.length);
+		
+		var returnstring = "<p>";
+		
+		if (UpLink.length > 0){
+		    var uplinkitem = afso.getFolder(UpLink);
+		    returnstring += CreateLink2(afso,uplinkitem,"PathInfoUp",targetline);
+		}
+		
+		returnstring +="<span class=\"PathInfoName\">"  + ThisItem + "</span>" + 
+				"<span class=\"PathInfoSuggest\"></span>";
+				
+		//We only want to wrap to next line if there are alternatives	
+		if (fulllisting==""){
+			returnstring += fulllisting;
+		}else{
+			returnstring +=  "<p style=\"margin-left:25px\">" + fulllisting ;
+		}
+				
+		//Display ellipses if needed
+		if (listingitems==MaxListingItems) returnstring += ellipses;
+		
+		//Add the delete button
+		returnstring += DeleteButton;
+		
+		if (fulllisting!="") returnstring += "</p>";
+		l("-");
+		l("-");
+		//Close Tag and return html
+		return returnstring + "</p>";
+	}else{
+        l("+Accomodating for invalid input");
+        l("+Acquiring closest parent filesystem object...");
+		//OKpart is the section of the user-entered line that is valid and exists
+		var OKpart;
+		OKpart = afso.GetParentFolderName(path);
+		if (!afso.FolderExists(OKpart)) {
+			UnknownPart = OKpart + UnknownPart; OKpart="";
+		}
+		
+		//If there is no parent folder, nothing is valid. The rest of the input will be classified unknown
+		if (OKpart == null) OKpart="";
+		//Make sure the directory name is terminated with a slash, so the the slash will not be classified with unknown input
+		if (OKpart != "") if (OKpart.substr(OKpart.length - 1,1)!="\\") OKpart += "\\";
+		
+		//The part of input that doesn't exist, or isn't complete
+		var UnknownPart;
+		UnknownPart = path.substring(OKpart.length,path.length);
+		//For comparison purposes
+		var lcUnknownPart = UnknownPart.toUpperCase();
+		//Choose whether we should be suggesting directories or drive letters.
+		var folder;
+		if (OKpart!="" & afso.FolderExists(OKpart)){
+			folder = afso.GetFolder(OKpart);
+		}else{
+			folder = afso.Drives;
+		}
+		l("-");
+
+		//To hold an enumerator object
+		var fc;	
+				
+		if (OKpart != ""){
+			//We have some sort of valid parent folder or drive
+			l("+Enumerating subfolders...");
+			//Get a subfolder listing for the parent folder or drive
+			fc = new Enumerator(folder.SubFolders);
+			if (fc!=null & !fc.atEnd()){
+				//Loop through them
+				for (; !fc.atEnd(); fc.moveNext())
+				{
+				    var item = fc.item();
+					var name = item.Name;
+					var link = CreateLink2(afso,item,"dirlisting",targetline);
+					
+					if (done==false){
+						if (name.substr(0,UnknownPart.length).toUpperCase()==lcUnknownPart){
+						    //TODO: Use of CreateLink
+							suggestion=CreateLink(fc.item().Path,name,"PathInfoSuggest",targetline);
+							lastsuggestion = fc.item().Path;
+							lastsuggestionline=targetline;
+							done=true;
+						}else if (fulllistingitems==MaxListingItems){
+							//Break if we are already past where it would have to be anyway
+							if (name.substr(0,UnknownPart.length).toUpperCase()>lcUnknownPart)	break;
+						}
+					}else{
+						//We already have our suggestion, just append alternatives
+						if (listingitems < MaxListingItems){
+							listing += link;
+							listingitems++;
+						} else{
+						    break;
+						}
+					}
+					//Just in case we have no suggestions all along
+					if (fulllistingitems < MaxListingItems){
+						fulllisting += link; 
+						fulllistingitems++;
+					}
+				}
+			}
+			l("-");
+			l("+Enumerating files...");
+			//Get a file listing for the parent folder or drive
+			fc = new Enumerator(folder.files);
+			if (fc!=null & !fc.atEnd()){
+				//Loop through them
+				for (; !fc.atEnd(); fc.moveNext())
+				{
+				    var item = fc.item();
+					if (item != null){
+                        
+					    var name = item.Name;
+						var link = CreateLink2(afso, item,"listing",targetline);
+						if (done==false){
+							if (name.substr(0,UnknownPart.length).toUpperCase()==lcUnknownPart){
+								suggestion=CreateLink2(afso,item,"PathInfoSuggest",targetline);
+								done=true;
+							}else if (fulllistingitems==MaxListingItems){
+								//Break if we are already past where it would have to be anyway
+								if (name.substr(0,UnknownPart.length).toUpperCase() > lcUnknownPart)	break;
+							}	
+						}else{
+							if (listingitems < MaxListingItems){
+								listing +=  link;
+								listingitems++;
+							}else{
+							    break;
+							}
+						}
+						if (fulllistingitems < MaxListingItems){
+							fulllisting += link; 
+							fulllistingitems++;
+						}
+					}
+				}
+			}
+			l("-");
+			l("-");
+			l("-");
+		
+		}else{
+			l("+Enumerating drives...");
+			//We dont' have any parent folder to start from!
+			//By default, folder is a drive listing when there is no folder
+			fc = new Enumerator(folder);
+			for (; !fc.atEnd(); fc.moveNext()){
+			    var item = fc.item();
+				if (fulllistingitems < MaxListingItems){
+				    //CreateLink2 will automatically override the css style and description fields when it detects a drive.
+					fulllisting += CreateLink2(afso,item,"dirlisting",targetline); 
+					fulllistingitems++;
+				}else{
+				    break;
+				}
+			}
+			l("-");
+		}
+	
+
+        //TODO: Add style detection for PathInfoUp, PathInfoSuggest, and use ver. 2
+        
+		var returnstring = "<p>";
+		if (OKpart.length > 0){
+		    var okfolder = afso.getFolder(OKpart);
+		    returnstring += CreateLink2(afso,okfolder,"PathInfoUp",targetline);
+		}
+		if (suggestion==""){
+			if (fulllisting==""){
+				fulllisting="<span class=\"listing\">This folder is empty.</span>";
+			}
+			
+			returnstring +=  "<span class=\"PathInfoBad\">"	+ UnknownPart + "</span>" + fulllisting;	
+			//Display ellipses if needed		
+			if (fulllistingitems==MaxListingItems) returnstring += ellipses;			
+		}else{
+			returnstring += suggestion + listing;		
+			
+			//Display ellipses if needed		
+			if (listingitems==MaxListingItems) returnstring += ellipses;		
+		}
+
+		//Add the delete button
+		returnstring += DeleteButton;
+		
+		//Close tag
+		returnstring +="</p>";
+				
+		l("-");
+		return returnstring;
+			
+	}
+	l("-");
+}
+
+
+//Updates output: Command Set, Summary Info, Source and Destination item help
+var lastRequest = new Date();
+function UpdateForm(){
+    UpdateFormCore();
+    UpdateBrowserCore();
+//    lastRequest = new Date();
+//    var datescheduled = lastRequest.getTime();
+//    setTimeout("UpdateFormMiddleman(" + datescheduled + ")",1000);
+}
+function LazyUpdateForm(){
+    UpdateFormCore();
+    UpdateBrowserCore();
+//    lastRequest = new Date();
+//    var datescheduled = lastRequest.getTime();
+//    setTimeout("UpdateFormMiddleman(" + datescheduled + ")",3000);
+}
+function QuickUpdateForm(){
+    UpdateFormCore();
+    UpdateBrowserCore();
+//    lastRequest = new Date();
+//    var datescheduled = lastRequest.getTime();
+//    setTimeout("UpdateFormMiddleman(" + datescheduled + ")",0);
+    
+}
+
+function UpdateFormMiddleman(datescheduled){
+    var diff = datescheduled - lastRequest.getTime();
+    //If any calls have been made since this one, quit;
+    if (diff < 0) return;
+    
+    UpdateBrowserCore();
+}
+
+function UpdateFormCore(){
+    l("+UpdateForm()");
+	//retrieve paths
+    if (!chkTrace.checked)
+        document.getElementById("tracepanelist").style.display = "none";
+    else
+        document.getElementById("tracepanelist").style.display = "";
+    
+    l("+Command listing, summary generation section");
+	var sourcelist = GetList(txtSource.innerText);
+	var destdir = txtDest.value;
+
+	//Update summary view information
+	lblSummary.innerText = GetSummary();
+    
+	//Update XCopy command listing (code view)
+	var newCommandHtml = "";
+	var cmds = GetCommands(sourcelist,GetList(txtEList.innerText),destdir,false,chkLog.checked,LogFileVar,chkExclude.checked, true,chkPause.checked);
+	if (cmds != null){
+
+		for (i=0;i<cmds.length;i++){
+		        var verb;
+		        if (cmds[i].indexOf(" ") < 0) verb = cmds[i];
+		        else verb = cmds[i].substr(0,cmds[i].indexOf(" "));
+	
+				//For each line, grab the first word as the identifier for the corresponding help index. Insert it inside docs\[word]help.htm
+				var HelpWindow = "<span class=\"help\" language=\"javascript\" onclick=\"window.showModelessDialog('docs/" + 
+						verb + "help.htm" + "');\" >/?</span>";
+
+				newCommandHtml += "<p class=\"command\">" +  cmds[i]  + HelpWindow +"</p>" ;
+			
+		}
+	}
+	l("+Updating interface");
+	lblXCopy.innerHTML  = newCommandHtml;
+	l("-");
+	l("-");
+	
+	
+	if (chkExclude.checked) tbExcludeList.style.display="inline";
+	l("-");
+}  
+
+function UpdateBrowserCore(){
+
+
+    l("+Source files/folders section");
+    
+    var txtsrc = txtSource.innerText;
+    if (chkEnableSource.checked){
+        
+	    //Update folders
+	    if (sourcetext == "" || sourcetext != txtsrc || ExpandLine > 0 ){
+		    //GetExactList
+		    var userlist = GetList(txtSource.innerText);
+		    window.offscreenBuffering =  (userlist.length < 35);
+    		
+		    txtSource.rows = (userlist.length *2) + 3;
+    		
+		    //FromInfo
+		    var FromInfoString = "";
+		    for (i=0;i<userlist.length;i++)
+			    FromInfoString += "<div class=\"browsersection\">" + GetPathHTML(userlist[i],i+1) + "</div>";
+    		
+		    if (userlist.length==0) FromInfoString="<div class=\"browsersection\">" +GetPathHTML("",1) + "</div>";
+		    l("+Updating interface");
+		    pathButtons.style.display ="";
+		    FromInfo.innerHTML = FromInfoString;
+		    l("-");
+		    sourcetext = txtSource.innerText;
+	    }
+	} else
+	{
+	    FromInfo.innerHTML = "<div class=\"noBrowse\" lanugage=\"javascript\" onclick=\"chkEnableSource.checked=true; return UpdateForm();\">Click to enable browsing</div>";
+	    pathButtons.style.display ="none";
+	    sourcetext = "";
+	   
+	}
+	l("-");
+	l("+Desination Folder section");
+	if (!chkEnableDestination.checked){
+	    ToInfo.innerHTML = "<div class=\"noBrowse\" lanugage=\"javascript\" onclick=\"chkEnableDestination.checked=true; return UpdateForm();\">Click to enable browsing</div>";
+	    desttext = "";
+	}else{
+	    
+	    if (desttext =="" | desttext != txtDest.value || ExpandLine==0){
+		    //ToInfo	
+    		
+		    var newHtml = "<div class=\"browsersection\">" + GetPathHTML(txtDest.value,0) + "</div>";
+		    l("+Updating interface");
+		    ToInfo.innerHTML = newHtml;
+		    l("-");
+    		
+		    desttext = txtDest.value;
+    		
+    		
+		    //Our filesystemobject
+	        var afso;
+	        afso = new ActiveXObject("Scripting.FileSystemObject");
+    		
+		    var displayinfo = "";
+		    var newvalue = txtDest.value;
+		    var driveletter = afso.GetDriveName(newvalue);
+            
+		    //Display information about the destination drive
+		    if (afso.DriveExists(driveletter)){
+		        drive=afso.GetDrive(driveletter);
+    		    
+    		    if (driveletter == "A" || driveletter == "a"){
+    		        displayinfo = "Drive 'A'. Usually 1.4MB 3.5\" floppy.";
+                }else{
+                    var IsReady = drive.IsReady;
+		            var volname = "";
+		            if (IsReady) volname= drive.VolumeName;
+	                if (volname.length == 0) volname =  GetDriveTypeTitle(drive.DriveType);
+	                if (volname.length > 0) volname = " (" + volname + ")";
+	                if (drive.ShareName.length > 0) volname = " " + drive.ShareName + volname;
+            	    
+    	            if (drive.DriveLetter.length > 0) displayinfo= drive.DriveLetter + ":" + volname + "<br />";
+            	    
+		            if (IsReady){
+
+		                displayinfo += "Drive Type: " + GetDriveTypeTitle(drive.DriveType);
+		                if (drive.FileSystem.length > 0) displayinfo += " (" + drive.FileSystem + ")";
+            		    
+		                displayinfo += "<br />";
+		                if (drive.SerialNumber.length > 0) displayinfo += "Serial: " + + drive.SerialNumber + "<br />";
+            		    
+		                //Drive usage
+		                var percentfree = drive.AvailableSpace / drive.TotalSize * 100;
+            		    
+		                var percentstring =  " ";
+		                if (percentfree < 1 && percentfree > 0) percentstring = "less than 1%";
+		                else percentstring = Math.round(percentfree) + "%";
+            		    
+            		    
+            		    
+		                //drive.FreeSpace includes quota information
+		                displayinfo += GetFriendlySize(drive.AvailableSpace) + " free (" + percentstring + 
+		                    ") of " + GetFriendlySize( drive.TotalSize) + "<br />";
+            		    
+            		    
+		            } else {
+		                displayinfo += "Drive not ready<br />";
+		            }
+    		    
+		        }
+	        }
+	        if (!afso.DriveExists(newvalue)){
+	            if (afso.FolderExists(newvalue)){
+		            folder=afso.GetFolder(newvalue);
+		            displayinfo += "<br />";
+                    if (folder.Attributes != undefined) displayinfo += "Attributes: " + GetAttributeList(folder.Attributes) + "<br />";
+		            if (!folder.IsRootFolder){
+    //		            displayinfo += "Name: " + folder.Name + "<br />";
+    //		            displayinfo += "Path: " + folder.Path + "<br />";		    
+		                if (folder.DateCreated != undefined) displayinfo += "Created: " + folder.DateCreated + "<br />";
+		                if (folder.DateModified != undefined) displayinfo += "Last Modified: " + folder.DateModified + "<br />";
+                    }
+	            }else if (afso.FileExists(newvalue)){
+		            displayinfo="Please enter a valid drive or directory name!";
+	            }
+	        }
+	    
+	        l("+Updating interface");
+		    document.getElementById("destinationInformation").innerHTML=displayinfo;
+		    l("-");
+	    }
+    }
+	l("-");
+}
+function GetAttributeList(flags){
+/*  Normal 0 Normal file. No attributes are set. 
+    ReadOnly 1 Read-only file. Attribute is read/write. 
+    Hidden 2 Hidden file. Attribute is read/write. 
+    System 4 System file. Attribute is read/write. 
+    Volume 8 Disk drive volume label. Attribute is read-only. 
+    Directory 16 Folder or directory. Attribute is read-only. 
+    Archive 32 File has changed since last backup. Attribute is read/write. 
+    Alias 1024 Link or shortcut. Attribute is read-only. 
+    Compressed 2048 Compressed file. Attribute is read-only. */
+    
+    var desc = "";
+    
+    if (flags & 1) desc += "Readonly, ";
+    if (flags & 2) desc += "Hidden, ";
+    if (flags & 4) desc += "System, ";
+    if (flags & 8) desc += "Volume, ";
+    if (flags & 16) desc += "Folder, ";
+    if (flags & 32) desc += "Archive, ";
+    if (flags & 1024) desc += "Shortcut, ";
+    if (flags & 2048) desc += "Compressed, ";
+    
+    if (desc.length > 2) desc = desc.substr(0, desc.length -2);
+    return desc;
+
+}
+
+var inTest=false;
+//Performs a simulated copy
+function btnTest_onclick() {
+
+	if (inTest) window.alert ("The simulation is already in progress. You can stop it at any time by cancelling the minimized command script.");
+
+	inTest=true;
+
+	//Disable the text button and display progress message
+	btnTest.disabled = true;
+	btnTest2.disabled = true;
+	var temptitle1 = btnTest.value;
+	var temptitle2 = btnTest.value;
+	btnTest.value = "Simulation in progress...";
+	btnTest2.value = "Simulation in progress...";
+
+	//Delete the test script and log from last time
+	if (fso.FileExists(TestScriptPath())) fso.DeleteFile(TestScriptPath(),true);
+	if (fso.FileExists(TestLogPath())) fso.DeleteFile(TestLogPath(),true);
+
+	//Open the test script file for writing
+	ts = fso.OpenTextFile(TestScriptPath(), 2,true);
+
+	//Generate test script and write it to the test script file
+	var cmds = GetCommands(GetList(txtSource.innerText),GetList(txtEList.innerText),txtDest.value,true,chkLog.checked,TestLogPath(),chkExclude.checked,false,chkPause.checked);
+	if (cmds == null){
+		btnTest.value = temptitle1;
+		btnTest2.value = temptitle2;
+		btnTest.disabled = false;
+		btnTest2.disabled = false;
+		inTest=false;
+		return;
+		
+	}
+	for (I = 0; I < cmds.length; I++ ){
+		ts.WriteLine(cmds[I]);
+	}
+	//Close the test script file - it is done, now we just need to run it
+	ts.Close();
+	
+	wsh = new ActiveXObject("WScript.Shell");
+	//Run the test script. It should pipe all output to the log file specified in GetCommands()	
+	wsh.Run("cmd.exe /c \"" + TestScriptPath() + "\"",7,true);
+	//Display a summary of the log file in lblXCopy, and generate a complete html equivalent at the location TestHTMLPath(). A link to the complete listing will be placed in the summary.
+	lblXCopy.innerHTML = FormatOutput(TestLogPath(),TestHTMLPath());
+
+
+	// Re-enabled the test button
+	btnTest.value = temptitle1;
+	btnTest2.value = temptitle2;
+	btnTest.disabled = false;
+	btnTest2.disabled = false;
+	inTest=false;
+}
+
+
+function btnSave_onclick() {
+	var filename = "";
+	fso = new ActiveXObject("Scripting.FileSystemObject");
+	filename = CopyScriptPath();
+	if (fso.FileExists(filename)) fso.DeleteFile(filename,true);
+	
+	
+
+	var cmds = GetCommands(GetList(txtSource.innerText),GetList(txtEList.innerText),txtDest.value,false,chkLog.checked,LogFileVar,chkExclude.checked,false,chkPause.checked);
+
+	if (cmds == null){
+		return;
+	}
+	
+	ts = fso.OpenTextFile(filename, 2,true);
+	for (i=0;i<cmds.length;i++){
+		ts.WriteLine(cmds[i]);
+	}
+	ts.Close();
+	
+	window.open(filename);
+}
+
+
+var fso,filename,ts;
+
+function btnCopy_onclick() {
+	fso = new ActiveXObject("Scripting.FileSystemObject");
+	filename = CopyScriptPath();
+	if (fso.FileExists(filename)) fso.DeleteFile(filename,true);
+	
+	
+
+	var cmds = GetCommands(GetList(txtSource.innerText),GetList(txtEList.innerText),txtDest.value,false,chkLog.checked,LogFileVar,chkExclude.checked,false,chkPause.checked);
+	if (cmds == null){
+
+		return;
+	}
+	ts = fso.OpenTextFile(filename, 2,true);
+	for (i=0;i<cmds.length;i++){
+		ts.WriteLine(cmds[i]);
+	}
+	ts.Close();
+	
+	wsh = new ActiveXObject("WScript.Shell");	
+	wsh.Run("cmd.exe /k \"" + filename + "\"",3,false);
+}
+
+function OpenLogViewer(){
+	wsh = new ActiveXObject("WScript.Shell");	
+	wsh.Run("Logs.hta");
+}
+
+
+//don't know
+var lastfilename = "";
+
+//The OPEN button
+function btnOpen_onclick() {
+    //Show our "Open File Dialog"
+	lastfilename = window.showModalDialog("Open.htm",lastfilename,"dialogWidth:35;dialogHeight:12;scroll:no;unadorned:no;");
+    //Load the file
+	if (lastfilename != "") LoadBatchFile(lastfilename);
+}
+//Loads a batch files data into the UI
+function LoadBatchFile(filename){
+	lastfilename = filename;
+	
+	fso = new ActiveXObject("Scripting.FileSystemObject");
+	var sh = new ActiveXObject("WScript.Shell");
+	var pf = sh.ExpandEnvironmentStrings("%PROGRAMFILES%");
+	
+	if (fso.FileExists(filename)){
+		ts = fso.OpenTextFile(filename, 1);
+		filename = ts.ReadAll();
+		ts.Close();
+		//Parse into an array of lines
+		var readfilelist;
+		readfilelist = GetList(filename);
+		
+		//Array
+		var sourcefiles = new Array();
+		//Index
+		var slines = 0;
+		//Array
+		var exclusionfiles = new Array();
+		//Index
+		var elines = 0;
+		
+		//space-delimited settings string
+		var confstr = "";
+		//Destination Directory
+		var destdir = "";
+
+		//Section booleans
+		var readingsourcefiles = false;
+		var readingexclusionlist = false;
+		//Loop through lines, interpreting the data differently section by section
+		for (var j = 0;j<readfilelist.length;j++){
+		    //line = The current line
+			var line = readfilelist[j];
+			//Check that we are in the header section
+			if (line.substr(0,5).toUpperCase() == "@REM "){
+			    //Chop off "@REM "
+				line = line.substring(5,line.length);
+				
+
+				//Single string
+				if (line.substr(0,13) == "Destination: "){
+					destdir = line.substring(13,line.length);
+					readingsourcefiles = false;
+					readingexclusionlist = false;
+				}
+
+				//Boolean values representing checkbox settings (single string)
+				if (line.substr(0,15) == "Configuration: "){
+					confstr = line.substring(15,line.length);
+					readingsourcefiles = false;
+					readingexclusionlist = false;
+				}
+				//multi-line
+				if (line.substr(0,14) == "Exclusion List"){
+					destdir = line.substring(16,line.length);
+					readingsourcefiles = false;
+					readingexclusionlist = true;
+				}else if (readingexclusionlist == true){
+				    //We have passed the Source Files marker, socontinue appending to that array
+					exclusionfiles[elines] = line;
+					elines++;
+				}	
+				if (line.substr(0,12) == "Source Files"){
+				    //We are in the Source Files section. This is a multi-line field, so we have set a boolean to guide subsequent parsing
+					readingsourcefiles=true;
+					readingexclusionlist = false;
+				}else if (readingsourcefiles == true){
+				    //We have passed the Source Files marker, socontinue appending to that array
+					sourcefiles[slines] = line;
+					slines++;
+				}
+		
+			}
+		}
+		
+		//index
+		var I =0;
+		
+		//Populate the Source Files text box with our data
+		txtSource.innerText = "";
+		for (I=0;I<sourcefiles.length;I++){
+			txtSource.innerText += "\n" + sourcefiles[I] + "\n";
+		}
+		txtSource.innerText = txtSource.innerText.substring(2,txtSource.innerText.length);
+		
+		//Populate the Exclusion List text box with our data
+		txtEList.innerText = "";
+		for (I=0;I<exclusionfiles.length;I++){
+			txtEList.innerText += "\n" + exclusionfiles[I] + "\n";
+		}
+		txtEList.innerText = txtEList.innerText.substring(2,txtEList.innerText.length);
+		
+		
+		//The Destination textbox
+		txtDest.innerText = destdir;
+		
+		
+		//Split into array
+		var cfgvalues = confstr.split(" ");
+		//Load references to check boxes"
+		var skeys = (new VBArray(settings.Keys())).toArray();
+		//Loop through each check box pointer
+		for (var j=0;j < skeys.length;j++){
+		        if (cfgvalues.length <= j) break;
+		        //parse the values
+				if (cfgvalues[j] == "false") cfgvalues[j] = false;
+				else cfgvalues[j] = true;
+				//assign the values to the respective item (the key is the control, the item is the checked property of that control).
+				settings.Item(skeys[j]) = cfgvalues[j];
+		}
+		UpdateSettingsUI();
+		UpdateForm();
+
+	}else{
+	    //File not found!
+		window.alert("File ran away or disappeared. Choose something else!");
+	}
+
+}
+
+
+function SaveSettings(){
+    l("+SaveSettings()");
+	var fso = new ActiveXObject("Scripting.FileSystemObject");
+
+	//Save source files to Source.lst
+	var file;
+
+	file = fso.OpenTextFile(SourceListPath(),2,true);
+	var items = GetList(txtSource.innerText);
+	for (i=0;i<items.length;i++){
+		file.WriteLine(items[i]);
+	}
+	file.WriteLine("");
+	file.Close();
+	
+	//Save Excluded files to Exclude.lst
+	file = fso.OpenTextFile(ExcludeListPath(),2,true);
+	items = GetList(txtEList.innerText);
+	for (i=0;i<items.length;i++){
+		file.WriteLine(items[i]);
+	}
+	file.WriteLine("");
+	file.Close();
+	
+	//Save destination directory to Dest.lst
+	file = fso.OpenTextFile(DestinationListPath(),2,true);
+	file.WriteLine(txtDest.value + " ");
+	file.Close();
+    l("-");
+}
+function window_onunload() {
+	SaveSettings();
+	SaveSettingDict();
+}
+//Initializes the UI and loads in the data from the various plain-text files in the program dir
+function window_onload() {
+    l("+window_onload()");
+    //Setup default error handler
+    window.onerror = HandleError;
+
+	//Load in Source & Dest information
+	fso = new ActiveXObject("Scripting.FileSystemObject");
+
+	var sfile = SourceListPath();
+	var dfile = DestinationListPath();
+	var cfile = SettingsListPath();
+	var efile = ExcludeListPath();
+
+    //Load in Source File Names
+	if (fso.FileExists(sfile)){
+		var ts = fso.OpenTextFile(sfile, 1);
+		var filename = ts.ReadAll();
+		ts.Close();
+		var readfilelist;
+		readfilelist = GetList(filename);
+		txtSource.innerText = "";
+		for (var n=0;n<readfilelist.length;n++){
+			txtSource.innerText += "\n" + readfilelist[n] + "\n";
+		}
+		txtSource.innerText = txtSource.innerText.substring(2,txtSource.innerText.length);
+	}else{
+		txtSource.innerText="";
+	}
+	//Load in the Exclusion List
+	if (fso.FileExists(efile)){
+		var ts = fso.OpenTextFile(efile, 1);
+		var filename = ts.ReadAll();
+		ts.Close();
+		var readfilelist;
+		readfilelist = GetList(filename);
+		txtEList.innerText = "";
+		for (var n=0;n<readfilelist.length;n++){
+			txtEList.innerText += "\n" + readfilelist[n] + "\n";
+		}
+		txtEList.innerText = txtEList.innerText.substring(2,txtEList.innerText.length);
+	}else{
+		txtEList.innerText="";
+	}
+	//Load in the Destination Directory filename
+	if (fso.FileExists(dfile)){
+		ts = fso.OpenTextFile(dfile, 1);
+		filename = ts.ReadAll();
+		filename = filename.substring(0,filename.length - 2);
+		ts.Close();		
+		if (fso.FileExists(filename)){
+		    var f;
+		    f =  fso.GetFolder(fso.GetFile(filename).ParentFolder);
+			txtDest.innerText = f.Path;
+		}else{
+			txtDest.innerText = filename.substring(0,filename.length -1);
+			
+			if (fso.FolderExists(txtDest.innerText))
+				txtDest.innerText = fso.GetFolder(txtDest.innerText).Path();
+
+		}
+	}else{
+		txtDest.innerText="";
+	}
+	//Initialize the array with default values
+	InitSettingDict();
+	//Load configuration values into the array
+	if (fso.FileExists(cfile)){
+		ts = fso.OpenTextFile(cfile, 1);
+		filename = ts.ReadAll();
+		ts.Close();
+		var readfilelist;
+		readfilelist = GetList(filename);
+		
+		var skeys = (new VBArray(settings.Keys())).toArray();
+		for (var k=0;k<skeys.length;k++){
+			if (k < readfilelist.length){
+				
+				var lastfour = readfilelist[k].substring(readfilelist[k].length - 4,readfilelist[k].length);
+				var isyes = (lastfour.toLowerCase() == "true");
+				settings.Item(skeys[k]) = isyes;
+			}
+		}
+
+	}
+	//Update the checkboxes from the config array
+	UpdateSettingsUI();
+	//Update the display
+	UpdateForm();
+    if (chkExclude.checked) tbExcludeList.style.display="inline"; else tbExcludeList.style.display="none";
+    
+    l("-");
+}
+//Dictionary object: holds checkbox:value pairs
+var settings = null;
+
+//Initializes the settings key:value pair array
+function InitSettingDict(){
+    l("+InitSettingsDict() //Initializes in the in-memory settings array");
+	settings = new ActiveXObject("Scripting.Dictionary");
+	settings.Add(optOverwrite,false);
+	settings.Add(optUpdate,false);
+	settings.Add(optContinue,false);
+	settings.Add(optContinue2,false);
+	settings.Add(optClean,false);
+	settings.Add(chkHiddenSystem,false);
+	settings.Add(chkResume,false);
+	settings.Add(chkPrompt,false);
+	settings.Add(chkMaintainReadOnly,false);
+	settings.Add(chkMaintainSecurity,false);
+	settings.Add(chkArchiveOnly,false);
+	settings.Add(chkMaintainAudit,false);
+	settings.Add(chkArchiveTag,false);
+	settings.Add(chkDecrypt,false);
+	settings.Add(chkLog,false);
+	settings.Add(chkExclude,false);
+	settings.Add(chkPause,true);
+	settings.Add(chkEnableSource,false);
+	settings.Add(chkEnableDestination,false);
+	settings.Add(chkTrace,false);
+	StoreSettings();
+	l("-");
+}
+//Update the settings object from the UI
+function StoreSettings(){
+    l("+StoreSettings() //Stores the values in the interface to the memory array");
+	var skeys = (new VBArray(settings.Keys())).toArray();;
+	for (var j=0;j<skeys.length;j++){
+			settings.Item(skeys[j]) = skeys[j].checked;
+	}
+	l("-");
+}
+//Update the UI from the settings object
+function UpdateSettingsUI(){
+    l("+UpdateSettingsUI() //Populates the interface checkboxes from the memory array");
+	var skeys = (new VBArray(settings.Keys())).toArray();;
+	for (var j=0;j<skeys.length;j++){
+			skeys[j].checked = settings.Item(skeys[j]);
+	}
+	l("-");
+}
+//Saves the key:value pairs line-by line
+function SaveSettingDict(){
+    l("+SaveSettingDict() //Saves the key:value pairs in memory to the settings file");
+	StoreSettings();
+	var fso = new ActiveXObject("Scripting.FileSystemObject");
+	var cfile =  SettingsListPath();
+	var file;
+	file = fso.OpenTextFile(cfile,2,true);
+	var skeys = (new VBArray(settings.Keys())).toArray();
+	for (var j=0;j < skeys.length;j++){
+			file.WriteLine(skeys[j].value + "  " + settings.Item(skeys[j]));
+	}
+	file.WriteLine("");
+	file.Close();
+	l("-");
+}
+
+var firsterror = true;
+function HandleError(desc,page,line,chr){
+    var fso = new ActiveXObject("Scripting.FileSystemObject");
+	var tfile = DebugLogPath();
+
+	var file;
+	if (!fso.FileExists(tfile)){
+	    file = fso.OpenTextFile(tfile,2,true);
+	    file.WriteLine("+++ +++ +++ Super Copy error log +++ +++ +++ ");
+	    file.WriteLine("+++ +++ +++ Press F5 to update   +++ +++ +++ ");
+	}else{
+	    file = fso.OpenTextFile(tfile,8,true);
+	}
+//	  try{
+//    bustMe()
+//  } 
+//  catch(e){ 
+//    expose(e,document.getElementById("errObj"))
+//  }
+	file.WriteLine("An error occured in SuperCopy: " + desc + 
+	"\nOn page: " + page + 
+	"\nLine: " + line + 
+	"\nCharacter: " + chr);
+
+	file.WriteLine("");
+	file.Close();
+	
+	
+	if (firsterror){
+	    errorlink.onclick=function(){window.open(tfile)};
+	    errorlink.innerHTML="Error(s) have occurred.";
+	    errorlinkdel.onclick=function(){
+	        var fso;fso= new ActiveXObject("Scripting.FileSystemObject");
+		fso.DeleteFile(tfile);
+		errorlink.innerHTML = "";
+		errorlinkdel.innerHTML = "";
+		firsterror = true;
+	    }
+	    errorlinkdel.innerHTML="Delete log";
+	    firsterror=false;
+	    window.open(tfile);
+	}
+
+	return true;
+}
+
+
+</script>
+<style>
+</style>
+</head>
+<body language="javascript" onload="return window_onload()" onunload="return window_onunload()">
+
+    <p>
+        <div class="errorlink" id="errorlink" language="javascript">
+        </div>
+        <div class="errorlinkdel" id="errorlinkdel" language="javascript">
+        </div>
+        <table width="100%" height="40px">
+            <tr>
+                <td>
+                    <div id="btnOpen" language="javascript" onclick="return btnOpen_onclick()" class="menubutton">
+                        Modify existing script
+                    </div>
+                </td>
+                <td>
+                    <div id="btnSave" language="javascript" onclick="return btnSave_onclick()" class="menubutton">
+                        Generate script of this transfer</div>
+                </td>
+                <td>
+                    <div id="btnTest" language="javascript" onclick="return btnTest_onclick()" class="menubutton">
+                        Calculate result (shown below)</div>
+                </td>
+                <td>
+                    <div id="btnCopy" language="javascript" onclick="return btnCopy_onclick()" class="menubutton">
+                        Perform transfer</div>
+                </td>
+            </tr>
+        </table>
+        <table width="100%">
+            <tr>
+                <td width="430px" id="copymethods">
+                    <h1>
+                        Transfer type</h1>
+                    <p>
+                        <input id="optOverwrite" checked type="radio" value="Radio1" name="RadioGroup" language="javascript"
+                            onclick="return UpdateForm();">Replace all
+                    </p>
+                    <p>
+                        <input id="optContinue" type="radio" value="Radio4" name="RadioGroup" language="javascript"
+                            onclick="return UpdateForm();">Only replace with newer files (resume transfer)</p>
+                    <p style="display: none;">
+                        <input id="optContinue2" type="radio" value="Radio3" name="RadioGroup" language="javascript"
+                            onclick="return UpdateForm();">Resume transfer (same as above)</p>
+                    <p>
+                        <input id="optUpdate" type="radio" value="Radio2" name="RadioGroup" language="javascript"
+                            onclick="return UpdateForm();">Just update files already there</p>
+                    <p>
+                        <input id="optClean" type="radio" value="Radio5" name="RadioGroup" language="javascript"
+                            onclick="return UpdateForm();">Delete destination files and directories, then
+                        copy</p>
+                </td>
+                <td valign="top">
+                    <h1>
+                        Action summary
+                    </h1>
+                    <div id="lblSummary">
+                        Please select a copy method</div>
+                </td>
+            </tr>
+        </table>
+        <table>
+            <tr>
+                <td valign="top" width="430px">
+                    <h1>
+                        From</h1>
+                    <textarea class="filelist" id="txtSource" name="Textarea1" rows="6" cols="46" language="javascript"
+                        onkeydown="return txtSourceOrDest_onkeydown()" onkeyup="return txtSourceOrDest_onkeyup()"></textarea>
+                </td>
+                <td valign="top">
+                    <h1>
+                        Browser <span class="browsingcheckbox"> <input language="javascript" 
+                            id="chkEnableSource" type="checkbox" name="Checkbox1" 
+                            onclick="return UpdateForm();"> Enable Browsing</span></h1>
+                    <div class="filelist">
+                        <table height="100%" cellspacing="0" cellpadding="0">
+                            <tr>
+                                <td valign="top">
+                                    <span id="FromInfo"></span>
+                                </td>
+                            </tr>
+                            <tr valign="bottom">
+                                <td valign="bottom">
+                                    <!-- Path Buttons-->
+                                    <table id="pathButtons" align="right" cellspacing="0" cellpadding="3">
+                                        <tr valign="bottom" align="right">
+                                            <td>
+                                                <div language="javascript" onclick="txtSource.innerText += '\nCHOOSE';UpdateForm();"
+                                                    class="addlinebutton">
+                                                    Add line</div>
+                                            </td>
+                                            <td>
+                                                <div language="javascript" onclick="txtSource.innerText = '';UpdateForm();" class="removelinesbutton">
+                                                    Remove all lines</div>
+                                            </td>
+                                        </tr>
+                                    </table>
+                                </td>
+                            </tr>
+                        </table>
+                    </div>
+                </td>
+            </tr>
+            <tr>
+                <td valign="top">
+                    <h1>
+                        To</h1>
+                    <p>
+                        <input class="filelist" id="txtDest" size="52" type="text" name="Text1" language="javascript"
+                            onkeydown="return txtSourceOrDest_onkeydown()" onkeyup="return txtSourceOrDest_onkeyup()"></p>
+                    <div id="destinationInformation">
+                    </div>
+                </td>
+                <td valign="top">
+                    <h1>
+                        Browser <span class="browsingcheckbox"> <input language="javascript" 
+                            id="chkEnableDestination" type="checkbox" name="Checkbox1" 
+                            onclick="return UpdateForm();"> Enable Browsing</span></h1>
+                    <div id="ToInfo" class="filelist">
+                    </div>
+                </td>
+            </tr>
+        </table>
+    </p>
+    <h1>
+        Settings</h1>
+    <table id="Settings" cellspacing="0" cellpadding="0" border="0">
+        <tr>
+            <td style="height: 127px">
+                <table id="Settings1" cellspacing="5" cellpadding="0" border="0">
+                    <tr>
+                        <td class="setting">
+                            <input id="chkHiddenSystem" type="checkbox" name="Checkbox2" language="javascript"
+                                onclick="return UpdateForm();">Include both hidden and system files</td>
+                    </tr>
+                    <tr>
+                        <td class="setting" style="height: 20px">
+                            <input id="chkResume" type="checkbox" checked name="Checkbox3" language="javascript"
+                                onclick="if (chkResume.checked == true){ chkMaintainAudit.checked =false; chkMaintainSecurity.checked = false; }return UpdateForm();">Resume
+                            progress after a connection failure</td>
+                    </tr>
+                    <tr>
+                        <td class="setting">
+                            <input language="javascript" id="chkLog" type="checkbox" name="Checkbox1" onclick="if (chkLog.checked == true) chkPrompt.checked = false; return UpdateForm();">Log
+                            results instead of displaying them</td>
+                    </tr>
+                    <tr>
+                        <td class="setting">
+                            <input id="chkExclude" type="checkbox" name="Checkbox3" language="javascript" onclick="if (this.checked == true) {tbExcludeList.style.display='inline';}else{tbExcludeList.style.display='none';} return UpdateForm();">Use
+                            an exclusion list</td>
+                    </tr>
+                    <tr>
+                        <td height="23px">
+                            <span class="advbtn" id="adv" language="javascript" onclick="if (this.innerText=='Advanced >') {Settings2.style.display='inline'; this.innerText='Simple <';}else{Settings2.style.display='none'; this.innerText='Advanced >';}">
+                                Advanced &gt;</span>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+            <td style="height: 127px">
+                <table id="Settings2" cellspacing="5" cellpadding="0" border="0" style="display: none">
+                    <tr>
+                        <td class="setting">
+                            <input id="chkMaintainReadOnly" type="checkbox" name="Checkbox6" language="javascript"
+                                onclick="return UpdateForm();">Preserve &nbsp;read-only file&nbsp;tag</td>
+                        <td class="setting">
+                            <input id="chkMaintainSecurity" type="checkbox" name="Checkbox7" language="javascript"
+                                onclick="if (chkMaintainSecurity.checked == false) chkMaintainAudit.checked = false; if (chkMaintainSecurity.checked == true) chkResume.checked = false; return UpdateForm();">Preserve
+                            file owner information and access security
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="setting">
+                            <input id="chkArchiveOnly" type="checkbox" name="Checkbox1" language="javascript"
+                                onclick="return UpdateForm();">Only copy&nbsp;files tagged "archive"</td>
+                        <td class="setting">
+                            <input id="chkMaintainAudit" type="checkbox" name="Checkbox8" language="javascript"
+                                onclick="if (chkMaintainAudit.checked == true){ chkMaintainSecurity.checked = true; chkResume.checked = false;}UpdateForm();">Preserve
+                            &nbsp;file audit information</td>
+                    </tr>
+                    <tr>
+                        <td class="setting" style="height: 20px">
+                            <input language="javascript" id="chkArchiveTag" type="checkbox" name="Checkbox1"
+                                onclick="if (chkArchiveTag.checked) chkArchiveOnly.checked = true;UpdateForm();">Remove
+                            "archive" tag on source files</td>
+                        <td class="setting" style="height: 20px">
+                            <input id="chkDecrypt" type="checkbox" name="Checkbox5" language="javascript" onclick="return UpdateForm();">Decrypt
+                            files when copying</td>
+
+                    </tr>
+                    <tr>
+                        <td class="setting">
+                            <input id="chkPrompt" type="checkbox" name="Checkbox3" language="javascript" onclick="if (chkPrompt.checked == true) chkLog.checked = false; return UpdateForm();">Prompt
+                            before each XCOPY</td> 
+                        <td class="setting" style="height: 20px">
+                            <input id="chkPause" type="checkbox" name="Checkbox5" language="javascript" onclick="return UpdateForm();">Pause
+                            when done</td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+    <div id="tbExcludeList" style="display: none">
+        <h1>
+            Exclude Paths List</h1>
+        <p>
+            An exclusion file allows you to specify directories (C:\RecoveryBin) or files (.db)
+            to not copy. Each path should go on its own line, and should not contain wildcards.
+        </p>
+        <p>
+            You can specify certain types of files to exclude: .db .obj - Do not use wildcards.</p>
+        <p>
+            You can specify directories like the obj directory found in application build locations.
+            \obj\ This will exclude any folder and its subitems from the transfer that is named
+            obj.</p>
+        <p>
+            Use rooted paths whenever possible - this eliminates unknown factors</p>
+        <textarea id="txtEList" class="filelist" rows="5" cols="60" onkeypress="return UpdateForm()"></textarea>
+    </div>
+    <p>
+        <a style="text-decoration: underline; color: blue; cursor: hand;" onclick="OpenLogViewer();">
+            View past logs</a></p>
+    <h1>
+        Command sequence <a id="btnTest2" language="javascript" onclick="return btnTest_onclick()"
+            class="calculateresults">Calculate results</a></h1>
+    <div id="lblXCopy" language="javascript" style="default">
+        XCopy "From" "To" Arguments</div>
+            <div style="overflow:scroll; ">
+        <ul id="tracepanelist"></ul>
+        </div>
+    <div id="footer">
+        <p>
+            Please send all bug reports, questions, and suggestions to <a href="mailto:nathanael.jones@gmail.com">
+                Nathanael.Jones@gmail.com</a> <a href="http://www.codeplex.com/Release/ProjectReleases.aspx?ProjectName=SuperCopy"
+                    style="margin-left: 2em;">Check for updates</a> <a style="margin-left: 2em;" href="http://www.codeplex.com/Wiki/View.aspx?ProjectName=SuperCopy">
+                        Online documentation</a> <input id="chkTrace" type="checkbox" language="javascript" onclick="if (!chkTrace.checked) document.getElementById('tracepanelist').innerHTML=''; UpdateForm();" /> Show debug trace</p>
+    </div>
+</body>
+</html>
