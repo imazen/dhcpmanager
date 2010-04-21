@@ -1,0 +1,203 @@
+body{
+
+font-family:Veranda;
+}
+
+
+h1{color:#3b60a7;font-size:x-large; margin-bottom:.3em; margin-top:1em; border-bottom:1px solid #F4F4F4;}
+
+
+/* Style the buttons in the menu bar: Open, Save, Test, and Run */
+div.menubutton{
+	cursor:hand;
+	height:48px;
+	padding-left:54px;
+	text-decoration:underline;
+	line-height:30px;
+	color:#0000ff;
+}
+
+/* Footer style (includes support, website links*/
+div#footer{
+	border-top:1px solid #F0F0F0;
+	margin-top:3em;
+	
+	padding-top:1em;
+	color:gray;
+}
+
+/* Error messages that appear at the top of the screen. */
+div.errorlink{text-decoration:underline; color:red; cursor:hand; margin-top:1em; margin-bottom:1em;}
+div.errorlinkdel{text-decoration:underline; color:red;cursor:hand;margin-top:1em; margin-bottom:1em;}
+
+
+p{margin-top: 0px; margin-bottom: 4px;}	
+
+
+
+/* Link to log */
+span.log{margin-top: 1px; margin-bottom: 1px; font-family: Courier New; background-color:Transparent;
+	font-size:x-small; text-decoration: underline; cursor:hand; color: Blue;margin-right: 8px }
+		
+
+
+
+span { margin-top: 0px; margin-bottom: 0px; font-family:Arial; background-color:Transparent;
+	font-size:x-small;}
+	
+
+/* Trace pane section */	
+
+#chkTrace
+{
+	margin-left:1em;
+}
+#tracepanelist ul
+{
+	border-left:10px dotted red;
+	margin-left:0px;
+	padding-left:4em;
+	list-style-type:none;
+}
+
+
+#tracepanelist ul.parent
+{
+	border-left:1px solid gray;	
+	border-bottom:1px solid gray;	
+	list-style-type:none;
+	padding-top:9px;
+	margin-top:-9px;
+	margin-left:7.5px;
+	padding-left:40px;
+	padding-bottom:.7em;
+	margin-bottom:2em;
+}
+#tracepanelist li.parent
+{
+	 background:url(images/add.gif) top left no-repeat;
+	 margin-top:1em;
+	 padding-left:30px;
+	 border-bottom:1px solid #e5e5e5;
+	 padding-bottom:5px;
+	 margin-bottom:0px;
+}
+#tracepanelist li
+{
+	margin-bottom:.2em;
+	margin-top:.2em;
+	padding-left:1em;
+	background-color:#fffafa;
+}
+span.tracedate
+{
+	float:right;
+	font-family:Georgia;
+	font-size:.8em;
+}
+span.traceid
+{
+	font-family:Georgia;
+	font-size:.8em;
+	padding-right:10px;
+	color:Gray;
+}
+span.tracetime
+{
+	padding-right:4em;
+	color:Gray;
+}
+div.tabarea{
+	padding-top:15px;
+	width:60%;
+	float:left;
+}
+div.rightpanel{
+	width:39%;
+	float:right;
+	padding-top:45px;
+}
+div.tabarea ul.tabs{
+	list-style-type:none;
+	margin:0;
+	padding:0;
+}
+div.tabarea ul.tabs li{
+	display:inline;
+	margin:0;
+	padding:0;
+	padding-right:50px;
+	cursor:pointer;	
+	font-family:verdana;
+	border:1px solid gray;
+	
+}
+div.tabarea ul.tabs li.selected{
+	font-weight:bold;
+	border-bottom:none;
+}
+#sRanges{
+	width:85%;
+}
+#btnGetNext{
+	width:9%;
+}
+
+dl.fields dt{
+	font-family:Verdana;
+	width:110px;
+	float:left;
+	font-size:9pt;
+}
+dl.fields dd{
+	display:block;
+}
+dl.fields input{
+	width:95%;
+}
+
+
+#rlistHolder span.active{
+	background:url(images/active.gif) bottom left no-repeat;
+	padding-right:13px;
+	margin-left:-5px;
+	padding-bottom:1px;
+}
+#rlistHolder span.inactive{
+	background:url(images/inactive.gif) bottom left no-repeat;
+	padding-right:13px;
+	margin-left:-5px;
+	padding-bottom:1px;
+}
+.yui-skin-sam .yui-dt-table{
+	font-size:8pt;
+}
+
+
+/* customized css for scrolling */
+.yui-dt-scrollable  {
+    width:95%; /* SET OVERALL WIDTH HERE for ie (make sure columns add up to this total) */
+    height:400px; /* SET HEIGHT HERE for ie */
+	cursor:default;
+}
+.yui-dt-scrollbody {
+    height:400px; /* SET HEIGHT HERE for non-ie */
+    *height:auto; /* for ie */
+}
+.yui-dt-scrollable  thead {
+    background:#696969; /*dark gray*/ /* ie needs a background color */
+    color:#fff;
+}
+
+/* SET WIDTHS FOR EACH TH TO HELP ALIGN COLUMNS */
+/* IF ALL COLS CAN BE SAME WIDTH USE THIS:
+.yui-dt-scrollable th, .yui-dt-scrollbody td {
+    width:20em;
+}*/
+/* OTHERWISE SET EACH COL WIDTH EXPLICITLY:*/
+.yui-dt-col-one {
+    width:10em;
+}
+.yui-dt-col-two {
+    width:20em;
+}

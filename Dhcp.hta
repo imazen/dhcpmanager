@@ -1,0 +1,78 @@
+<html>
+<head>
+    <title>Dhcp Management by Nathanael Jones</title>
+    <hta:application id="objCopier" applicationname="Dhcp Management" scroll="auto" singleinstance="yes"
+        windowstate="normal" border="thick" innerborder="no" icon="images\Icon.ico" scrollflat="yes" />
+		
+		<script language="JavaScript" src="Dhcp.js"></script>
+                <script language="JavaScript" src="Interface.js"></script>
+		<link href="UI.css" type="text/css" rel="stylesheet" />
+		<link type="text/css" rel="stylesheet" href="yahoo/datatable/assets/skins/sam/datatable.css"> 
+		<script language="JavaScript" src="yahoo/utilities/utilities.js"></script>
+		<script language="JavaScript" src="yahoo/datasource/datasource-beta.js"></script>
+		<script language="JavaScript" src="yahoo/datatable/datatable-beta.js"></script>
+		
+</head>
+<body  onload="return window_onload()" onunload="return window_onunload()">
+
+    <p>
+        <div class="errorlink" id="errorlink" >
+        </div>
+        <div class="errorlinkdel" id="errorlinkdel" >
+        </div>
+        
+		<div class="tabarea">
+		<input type="button" id="btnRefresh" value="Refresh" ></input>	
+		<ul class="tabs">
+			<li id="tbUnassigned">Unassigned</li>
+			<li id="tbReservations">Reservations</li>
+		</ul>
+		<div id="tUnassigned">
+			<div id="ulistHolder" class="yui-skin-sam"></div>
+      	</div>
+		<div id="tReservations">
+			<div id="rlistHolder" class="yui-skin-sam"></div>
+      		
+		</div>
+        </div>
+		<div class="rightpanel">
+        Select a range to find an avaialble IP address
+		<select id="sRanges" >
+			            <option value="loading">loading...</option>
+		</select>
+		<input type="button" id="btnGetNext" value="Find" ></input>
+		<dl class="fields">
+			
+			<dt>IP Address:</dt><dd><input type="text" value="" id="txtIPAddress" /></dd>
+			<dt>MAC:</dt><dd><input type="text" value="" id="txtMACAddress" /></dd>
+			<dt>Hostname:</dt><dd><input type="text" value="" id="txtClient" /></dd>
+			<dt>Description:</dt><dd><input type="text" value="" id="txtDescription" /></dd>
+		</dl>
+		
+		
+				<div id="btnsReservations" style="display:none;">
+					<input type="button" id="btnChange" value="Change" ></input>
+					<input type="button" id="btnRemove" value="Delete Selected" ></input>
+				</div>
+				<input type="button" id="btnAdd" value="Add New" ></input>
+		</div>
+		<div style="clear:both">&nbsp;</div>
+		Compare <span id="sPrimary"></span> with
+		<select id="sSecondary" >
+			            <option value="loading">loading...</option>
+		</select> <input type="button" id="btnCompare" value="Compare" /><br />
+		Actions <input type="button" id="btnSync" value="Make Changes" />
+		<div id="slistHolder"></div>
+		
+        <ul id="tracepanelist" style="height:200px; overflow:scroll;"></ul>
+    <div id="footer">
+<p>Remember that if a computer is assigned a new IP address, the old lease or reservation is removed by the server. Therefore, if you "Find" for the next available IP address, it may return the supposedly unused address of the computer, and an IP conflict will occur until the computer is rebooted/renewed.</p>
+<p>The easiest way to avoid this problem is to never use "Find" on a dynamically-assigned address range. Just hit "Add New" to create a reservation for the current lease address.</p>
+        <p>
+            Please send all bug reports, questions, and suggestions to <a href="mailto:nathanael.jones@gmail.com">
+                Nathanael.Jones@gmail.com</a> <a href="http://www.codeplex.com/Release/ProjectReleases.aspx?ProjectName=SuperCopy"
+                    style="margin-left: 2em;">Check for updates</a> <a style="margin-left: 2em;" href="http://www.codeplex.com/Wiki/View.aspx?ProjectName=SuperCopy">
+                        Online documentation</a> <input id="chkTrace" type="checkbox" language="javascript" onclick="if (!chkTrace.checked) document.getElementById('tracepanelist').innerHTML=''; "  checked=true/> Show debug trace</p>
+    </div>
+</body>
+</html>

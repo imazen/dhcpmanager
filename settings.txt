@@ -1,0 +1,11 @@
+
+
+[primary]
+192.168.100.71 ;The server we will be editing
+
+[secondary]
+192.168.100.66 ;Servers to replicate changes to, and to synchronize with.
+192.168.100.75 ;Servers to replicate changes to, and to synchronize with.
+
+[scopes]
+all ;or the scope addresses.
