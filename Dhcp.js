@@ -419,8 +419,8 @@ DhcpScope.prototype.getReservations = function(){
     var output = this.execute("dump");
     //get all "add reservedip" commmands
     var lines = DhcpUtils.getLines(output);
-    
-    var filterReg = new RegExp(/^\s*Dhcp Server\s+([0-9\.]+)\s+Scope\s+([0-9\.]+)\s+Add reservedip\s+([0-9\.]+)\s+([0-9abcdefABCDEF]+)\s+"([^"]*)"\s+"([^"]*)"\s+"([^"]*)"/i);
+    //Added Additional code to work with Server 2008 R2 1/11/2010 -JL(?:\\\\)
+    var filterReg = new RegExp(/^\s*Dhcp Server\s+(?:\\\\)?([0-9\.]+)\s+Scope\s+([0-9\.]+)\s+Add reservedip\s+([0-9\.]+)\s+([0-9abcdefABCDEF]+)\s+"([^"]*)"\s+"([^"]*)"\s+"([^"]*)"/i);
     
 	var badlines = [];
     var results = new Array();
@@ -440,7 +440,13 @@ DhcpScope.prototype.getReservations = function(){
 		//			line: lines[i], caps:captures
 		//		});
 		//	}
-            results.push(new DhcpReservation(this.dhcpServer.serverAddress,this.scopeAddress,captures[3],captures[4],captures[5],captures[6],captures[7]));
+            
+			//alert("captures[3]=" +  captures[3]);
+			//alert("captures[4]=" +  captures[4]);
+			//alert("captures[5]=" +  captures[5]);
+			//lert("captures[6]=" +  captures[6]);
+			//alert("captures[7]=" +  captures[7]);
+			results.push(new DhcpReservation(this.dhcpServer.serverAddress,this.scopeAddress,captures[3],captures[4],captures[5],captures[6],captures[7]));
 			
         }
     }
