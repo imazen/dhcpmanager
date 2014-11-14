@@ -1,1 +1,1 @@
-cmd.exe /k
+powershell -noexit
